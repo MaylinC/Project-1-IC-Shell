@@ -7,6 +7,7 @@ char **record;
 int exit_return = 0; 
 int count;
 int indx; 
+int argNumber; 
 
 char *line_reader() {
     int flag = 0;
@@ -144,13 +145,20 @@ int command_execute(char **cmd, char **history) {
           return 1;
         } 
         if (strcmp(history[0], "!!") != 0) {
-          for (int i = 0; i < size; i++) { // word
-            if (history[i] != NULL) {
-              printf("%s """,history[i]);
-            }
+
+          if (argNumber == 2){ 
+            command_execute(history, record);
           }
-          printf("\n");
-          command_execute(history, record);
+          else {
+
+            for (int i = 0; i < size; i++) { // word
+              if (history[i] != NULL) {
+                printf("%s """,history[i]);
+              }
+            }
+            printf("\n");
+            command_execute(history, record);
+          }
         }
       }
       else
@@ -159,18 +167,32 @@ int command_execute(char **cmd, char **history) {
       }
     }
     else if (strcmp(cmd[0], "exit") == 0) {
-
+      
       if (cmd[1] == NULL) {
         printf("bye \n"); 
         return 0; 
-      }
+      } 
 
-      exit_return = atoi(cmd[1]);  
-      u_int8_t truncate = cmd[1]; 
+      else {
 
-      if (truncate >= 0 || truncate <= 255) {
-        printf("bye \n"); 
-        return 0;   
+        if (argNumber == 2) {
+
+          exit_return = atoi(cmd[1]); 
+          u_int8_t truncate = cmd[1]; 
+
+          if (truncate >= 0 || truncate <= 255) {
+            return 0;   
+          }
+        }
+        else {
+          exit_return = atoi(cmd[1]); 
+          u_int8_t truncate = cmd[1]; 
+
+          if (truncate >= 0 || truncate <= 255) {
+            printf("bye \n"); 
+            return 0;   
+          }
+        }
       }
     }
 
@@ -202,12 +224,90 @@ int command_loop() {
   return status; 
 }
 
+int check_file(char *each_line,char *path) {
+  
+  char *line;
+  char **cmd;
+  int status; 
+  char *token;
+
+  //printf("path: %s \n",path); 
+
+  if (count == 0) {
+
+    token = strtok(each_line," \t\n");
+
+    //printf("token: %s \n",token);
+
+    while (token != NULL ) { 
+            
+      if (indx == 0) {
+        if ((strcmp(token, "##") == 0)) {
+          indx++; 
+        }
+        else {
+          printf("No file specification ex: ## ... \n");
+        }
+      }    
+      if (indx == 2) {
+        if ((strcmp(token,path) == 0)) {
+          count++; 
+        }
+        else {
+          printf("Wrong File Name \n");
+        }
+      }
+      indx++; 
+      token = strtok(NULL, " \t\n");
+    }      
+  }
+
+  else {
+
+    cmd = string_token(each_line); 
+    if (flag_his == 0) {  
+      previous_command(cmd);
+    } 
+    flag_his = 1;
+    status = command_execute(cmd, record);
+
+    free(line);
+    free(cmd);             
+  }
+  return status; 
+}
+
 int main(int argc, char *argv[]) {
  
   int status_loop = 1;
- 
+  char *path = argv[1]; 
+  argNumber = argc; 
+  FILE* fp = fopen(path, "r"); 
+  char * each_line = NULL;
+  size_t lenght = 0;
+  ssize_t read;
+  
   while (status_loop) {
-    status_loop = command_loop(); 
+
+    if (argNumber == 2) {
+
+      int count = 0;
+      int indx = 0; 
+
+      if (fp == NULL) {
+        perror("open file unsucessfully"); 
+      }
+      while ((read = getline(&each_line, &lenght, fp)) != -1) { 
+        status_loop = check_file(each_line,path);       
+      } 
+      fclose(fp); 
+    }
+    else {
+      status_loop = command_loop(); 
+    }
   }
   free(record); 
+  return exit_return;
 }
+
+
