@@ -4,12 +4,15 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
 
 int flag_his = 0;
 char **record;
 int status_loop = 1;
-int exit_return = 0;
 int statusExit = 0;
+int exit_return = 0;
 int count;
 int indx;
 int argNumber;
@@ -100,6 +103,7 @@ char **string_token(char *line)
 void handler_sig()
 {
 
+    printf("Hello\n");
     status_loop = 1;
     printf("\n");
     // if (signo == SIGTSTP) {
@@ -159,6 +163,8 @@ int external_command(char **args)
 {
 
     int pid;
+    int i, j;
+    int out;
 
     //sigemptyset(&sig_act.sa_mask);
     sig_act.sa_handler = handler_sig; //return to default becuase the child process also took ignoring signal from parents
@@ -173,35 +179,77 @@ int external_command(char **args)
     }
     if (!pid)
     {
+
+        int fd0, fd1, i; //fd0, fd1 is file-descriptor
+        int size = (int)sizeof(args[0]) / sizeof(char);
+
         pid = getpid();
         setpgid(pid, pid);
         tcsetpgrp(0, pid);
+
+        for (i = 0; i < size; i++)
+        { // word
+
+            if (args[i] != NULL)
+            {
+
+                if (strcmp(args[i], ">") == 0)
+                {
+
+                    args[i] = NULL;
+                    if ((fd1 = open(args[i + 1], O_CREAT | O_TRUNC | O_WRONLY, 0666)) < 0)
+                    {
+                        perror("Couldn't open the output file");
+                        exit(0);
+                    }
+                    dup2(fd1, STDOUT_FILENO); // 1 here can be replaced by STDOUT_FILENO
+                    close(fd1);
+                }
+
+                else if (strcmp(args[i], "<") == 0)
+                {
+                    args[i] = NULL;
+                    if ((fd0 = open(args[i + 1], O_RDONLY)) < 0)
+                    {
+                        perror("Couldn't open the output file");
+                        exit(0);
+                    }
+                    //dup2() copies content of fdo in input of preceeding file
+                    dup2(fd0, 0);
+                    close(fd0);
+                }
+            }
+        }
 
         if (execvp(args[0], args) < 0)
         {
             printf("bad command");
             printf("\n");
         }
+
+        else
+        {
+            execvp(args[0], args);
+            printf("\n");
+        }
     }
     if (pid)
     {
-        int wstatus;
         setpgid(pid, pid);
         tcsetpgrp(0, pid);
+        int wstatus;
+
         waitpid(pid, &wstatus, WUNTRACED);
         tcsetpgrp(0, getpid());
-
         if (WIFEXITED(wstatus))
         {
             statusExit = WEXITSTATUS(wstatus);
             if (statusExit == 0)
             {
-                printf("\n"); 
                 printf("Terminate normally\n");
             }
             else
             {
-                printf("\n"); 
                 printf("Terminate abnormally\n");
             }
         }
@@ -209,7 +257,6 @@ int external_command(char **args)
         else if (WIFSIGNALED(wstatus))
         {
             statusExit = WTERMSIG(wstatus);
-            printf("\n"); 
             printf("Killed by signal =%d%s\n",
                    WTERMSIG(wstatus),
                    WCOREDUMP(wstatus) ? " (dumped core)" : "");
@@ -217,7 +264,7 @@ int external_command(char **args)
         else if (WIFSTOPPED(wstatus))
         {
             statusExit = WSTOPSIG(wstatus);
-            printf("\n"); 
+
             printf("Child received SIGTSTP\n");
         }
     }
@@ -234,7 +281,8 @@ int command_execute(char **cmd, char **history)
 
     if (strcmp(cmd[0], "echo") == 0)
     {
-         if (strcmp(cmd[1], "$?") != 0)
+
+        if (strcmp(cmd[1], "$?") != 0)
         {
 
             previous_command(cmd);
@@ -258,11 +306,9 @@ int command_execute(char **cmd, char **history)
 
         if (flag_his == 1)
         {
-
             if (history[0] == NULL)
             {
 
-                printf("in Null");
                 flag_his = 0;
                 return 1;
             }
@@ -280,7 +326,6 @@ int command_execute(char **cmd, char **history)
                 }
                 else
                 {
-
                     for (int i = 0; i < size; i++)
                     { // word
                         if (history[i] != NULL)
@@ -399,7 +444,7 @@ int check_file(char *each_line, char *path)
     }
 
     else
-    
+
     {
 
         cmd = string_token(each_line);
@@ -428,8 +473,6 @@ int main(int argc, char *argv[])
 
     printf("Starting IC shell \n");
 
-    snhl(); 
-
     if (argNumber == 2)
     {
         int count = 0;
@@ -445,17 +488,24 @@ int main(int argc, char *argv[])
         }
         fclose(fp);
     }
-    else {
+    else
+    {
 
         while (status_loop)
-        {
 
+        {
             status_loop = command_loop();
-          
         }
     }
-
+    free(record);
     return exit_return;
 }
+
+
+
+
+
+
+
 
 
